@@ -1,0 +1,22 @@
+# secrets — NEVER commit
+env
+.env
+*.key
+*.pem
+*.secret
+
+# runtime state + track-record data (we version the CODE, not the running data)
+*_state.json
+*_pnl.csv
+*.log
+regime_history.csv
+hl_exec_state.json
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.bak
+
+# os
+.DS_Store

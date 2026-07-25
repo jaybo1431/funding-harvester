@@ -26,3 +26,14 @@ only accrues funding and ignores costs/hedge-slippage/tail). Normal-regime drawd
     Keep leverage where a tail event hurts but doesn't end you.
 - **RAMP:** prove 1× live → step to 3× on evidence → run α=1 concentrated (already proven in the
   live paper concentrated book). Aggressive on READINESS, disciplined on the TRIGGER.
+
+## 📌 STATUS Jul 25 2026 — RUNNING, let it cook
+- **Paper-forward ~3.7 days**, 3 books climbing (FLAT ~52% / CONC ~147% / DRIFT ~266% APY paper).
+  Now gathering multi-week data across regime changes — the real test of the sustainable rate.
+- **Multi-venue expansion roadmap added** → see `EXPANSION_ROADMAP.md` (research swarm, Jul 25).
+  Ranked: Lighter → Injective → Extended. Idle collateral: Aave/sDAI (NOT sUSDe). Two-plane treasury.
+- **PROVE-FIRST GATE stands:** prove HL clears 8% net LIVE (maker fills, slippage, hedge-holds,
+  security spine) on small real money BEFORE any expansion. Alpha is regime-compressed — venues don't fix that.
+- **Deployment:** UK-first (grey-zone DEXs). Algeria VPS + accounts revisited later (unlocks CEX venues).
+- Repos PRIVATE + backed up: jaybo1431/funding-harvester (this) + jaybo1431/robinhood-runner (signal bots).
+- No real money yet. Weapon loaded (MAX_LEVERAGE=3 cap), safety on. Telegram tripwire armed for first signal trade.

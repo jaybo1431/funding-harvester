@@ -106,6 +106,7 @@ def page():
         _fund("HL Flat", "equal-weight carry", f"{FH}/hl_paper_state.json"),
         _fund("HL Concentrated", "α=1 fat-funding tilt", f"{FH}/hl_paper_conc_state.json"),
         _fund("Drift", "Solana on-chain carry", f"{FH}/drift_paper_state.json"),
+        _fund("Lighter", "zk-rollup carry · incl RWA perps", f"{FH}/lighter_paper_state.json"),
     ]
     bots = [
         _bot("Overdose t=0", "caller copy · buy now", f"{RR}/overdose_state.json"),
@@ -158,6 +159,7 @@ span.pos,.big.pos{{color:var(--pos)}}span.neg,.big.neg,.pct.neg{{color:var(--neg
 
 <div class=foot>
 🟢 <b>Funding</b> = market-neutral carry, the validated edge (OOS-held). 🎯 <b>Signal bots</b> = unproven, paper-only, counting rugs from t=0 (no survivorship). Overdose t=0 vs t+10 tests whether waiting beats sniping. Wallet-cluster fires only when ≥3 vetted winners hold the same fresh coin. <b>Nothing gets funded until a scoreboard proves out.</b>
+<br><br>📋 <b>Funding Bot</b> — full continuation/handoff prompt saved to <code>~/Desktop/FUNDING BOT.md</code> · repos private (jaybo1431/funding-harvester + robinhood-runner) · roadmap in <code>EXPANSION_ROADMAP.md</code>
 </div>
 </div></body></html>'''
 

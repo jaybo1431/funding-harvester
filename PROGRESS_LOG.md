@@ -37,3 +37,30 @@ only accrues funding and ignores costs/hedge-slippage/tail). Normal-regime drawd
 - **Deployment:** UK-first (grey-zone DEXs). Algeria VPS + accounts revisited later (unlocks CEX venues).
 - Repos PRIVATE + backed up: jaybo1431/funding-harvester (this) + jaybo1431/robinhood-runner (signal bots).
 - No real money yet. Weapon loaded (MAX_LEVERAGE=3 cap), safety on. Telegram tripwire armed for first signal trade.
+
+## 🌐 MULTI-VENUE PAPER EXPANSION (Jul 27-28 2026) — 5 books now, all PAPER
+Using the quiet/compressed regime to gather honest funding data across venues (paper, no money —
+going LIVE on ANY venue still gated behind HL proving first).
+
+**5 paper carry books live (hourly cron each):**
+- `hl_paper.py` — HL Flat (realistic ~24% APY) + HL Concentrated α=1 (~80%) — the base, proven-edge.
+- `drift_paper.py` — Drift/Solana (Docker container).
+- `lighter_paper.py` — Lighter (zk-rollup, 0% fees, 202 markets incl RWA perps TSLA/MRVL). Reads own
+  8h funding via mainnet.zklighter.elliot.ai/api/v1/funding-rates (filter exchange=="lighter").
+- `aster_paper.py` — Aster (Binance-style API, ~680 symbols one call: fapi.asterdex.com/fapi/v1/premiumIndex).
+  Note: picks rich-but-thin coins → add a liquidity/OI filter before it goes live.
+
+**`honest_cost.py`** — re-prices all books under realistic costs, now with PER-VENUE fee tiers
+(Lighter 0% fees → cost stays slippage-only, so its realistic ≈ headline; HL/Drift/Aster ~8-10bps base).
+Insight surfaced: in this compressed regime HL Flat's CONSERVATIVE case dips below the 8% gate (+2%),
+while Concentrated stays robust (+50%) — i.e. if going live in a compressed regime, lean CONCENTRATED.
+
+**Venue vetting (add only if funding API is cleanly readable + deep + reliable):**
+- ✅ Lighter (#1-ranked), ✅ Aster (top-3 vol) — PASSED, added as paper books.
+- ❌ EdgeX — per-contract funding (292 calls to rank) = too heavy, SKIPPED (revisit if bulk endpoint ships).
+- 📋 Injective/Helix + Extended (X10) — scoped in EXPANSION_ROADMAP, harder integrations (Injective funding
+  derived from on-chain cumulative; Extended Starknet). Build when expanding, one at a time, post-proof.
+- ❌ dYdX (blocks UK), GMX (borrow-fee, not classic funding), derp.trade (thin/obscure Solana minnow) — skip.
+
+**Dashboard** (`hl_dashboard.py`, :3040) shows all 5 books. Repos private + backed up.
+DISCIPLINE UNCHANGED: paper data-gathering only; no venue goes live until HL clears the £250 test.

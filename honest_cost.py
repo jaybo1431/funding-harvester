@@ -24,6 +24,7 @@ BOOKS = [
     ("HL Conc", "hl_paper_conc_state.json", 8, 15, 25),
     ("Drift", "drift_paper_state.json", 10, 18, 30),
     ("Lighter", "lighter_paper_state.json", 2, 4, 6),
+    ("Aster", "aster_paper_state.json", 8, 15, 25),
 ]
 # (label, bps-tier index into the book's tuple, funding-capture haircut)
 SCENARIOS = [

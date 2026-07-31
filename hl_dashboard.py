@@ -107,7 +107,7 @@ def page():
         _fund("HL Concentrated", "α=1 fat-funding tilt", f"{FH}/hl_paper_conc_state.json"),
         _fund("Drift", "Solana on-chain carry", f"{FH}/drift_paper_state.json"),
         _fund("Lighter", "zk-rollup carry · incl RWA perps", f"{FH}/lighter_paper_state.json"),
-        _fund("Aster", "Binance-style perp DEX carry", f"{FH}/aster_paper_state.json"),
+        # Aster paused Jul 31 — funding churns too fast to carry (confirmed dud, code kept).
     ]
     bots = [
         _bot("Overdose t=0", "caller copy · buy now", f"{RR}/overdose_state.json"),

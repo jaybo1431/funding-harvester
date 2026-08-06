@@ -1,22 +1,30 @@
 """dashboard.py — unified PrimeHaul PAPER-trading dashboard (the new stack, one screen).
 
-Pure stdlib. Serves http://<host>:3040. Two decks:
+Pure stdlib. Serves http://<host>:3040. Three decks:
   🟢 FUNDING MACHINE  — the positive-sum core (HL flat, HL concentrated, Drift). Market-
      neutral funding carry. net = cum_funding − cum_cost, annualised. This is the real edge.
   🎯 SIGNAL BOTS       — paper experiments proving forward BEFORE any real money: Overdose
      caller copy (t=0 vs t+10 A/B) + wallet-cluster (≥3 vetted winners in one coin). Each
      runs a +40% take-profit on a compounding £1k paper bankroll.
+  🔴 LIVE SETUP        — READ-ONLY status of the go-live rails. Checks WHETHER the trade-only
+     agent key is set (never reads/prints its value), shows the PUBLIC address + live balance
+     pulled read-only from Hyperliquid's public API. NO write path, NO key input by design —
+     the key is typed once by YOU straight into the server. A form that eats private keys is
+     the #1 way these projects die; this panel just tells you what's ready.
 
-Everything here is PAPER. No keys, no orders, no money. Auto-refresh 60s.
+Everything in the top two decks is PAPER. No keys, no orders, no money. Auto-refresh 60s.
 """
 import json
 import os
 import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 3040
 FH = "/root/funding-harvester"
 RR = "/root/robinhood-runner"
+LIVE_ENV = "/root/hl-live/.env"        # YOU set this over SSH; dashboard never writes it
+HL_INFO = "https://api.hyperliquid.xyz/info"
 HRS_YR = 24 * 365
 START_BANK = 1000.0
 
@@ -66,6 +74,45 @@ def _bot(name, sub, path, start=START_BANK):
             "hit": hit, "avg": avg, "opens": op, "seeded": st.get("seed_max")}
 
 
+# ── LIVE SETUP (read-only) ─────────────────────────────────────────────────────────────
+def _hl_balance(addr):
+    """Read-only account value + withdrawable for a PUBLIC address, from Hyperliquid's
+    public info endpoint. Public data — no key, no signing. None if unreachable/empty."""
+    try:
+        req = urllib.request.Request(
+            HL_INFO,
+            data=json.dumps({"type": "clearinghouseState", "user": addr}).encode(),
+            headers={"Content-Type": "application/json"})
+        d = json.loads(urllib.request.urlopen(req, timeout=6).read())
+        ms = d.get("marginSummary", {}) or {}
+        return {"account_value": float(ms.get("accountValue", 0) or 0),
+                "withdrawable": float(d.get("withdrawable", 0) or 0),
+                "n_pos": len(d.get("assetPositions", []) or [])}
+    except Exception:
+        return None
+
+
+def _live_status():
+    """Read the go-live env for PRESENCE only. The private key's VALUE is never stored,
+    returned, logged or rendered — we compute a boolean and throw it away. The public
+    address IS public, so it's safe to show; balance is pulled read-only from HL."""
+    key_set, addr, env_exists = False, "", os.path.exists(LIVE_ENV)
+    if env_exists:
+        try:
+            for line in open(LIVE_ENV):
+                s = line.strip()
+                if s.startswith(("HL_AGENT_KEY=", "TRADER_PRIVATE_KEY=")):
+                    key_set = len(s.split("=", 1)[1].strip()) > 10   # presence only, value discarded
+                elif s.startswith("HL_ACCOUNT_ADDRESS="):
+                    addr = s.split("=", 1)[1].strip()
+        except Exception:
+            pass
+    bal = _hl_balance(addr) if addr else None
+    ready = bool(key_set and bal and bal["account_value"] > 0)
+    return {"env_exists": env_exists, "key_set": key_set, "addr": addr,
+            "bal": bal, "ready": ready}
+
+
 def _sign(v):
     return "pos" if v >= 0 else "neg"
 
@@ -98,6 +145,50 @@ def bot_card(d):
         <span class="muted">{d["closed"]}✓ {d["open"]}◷ {d["pending"]}⏳</span></div>
       <div class="poslist">{op}</div>
       <div class="muted sm">{armed} · +40% TP · £100 clips · paper</div>
+    </div>'''
+
+
+def _chk(ok, label, detail=""):
+    icon = "✅" if ok else "⬜"
+    cls = "pos" if ok else "muted"
+    det = f'<span class="chd {cls}">{detail}</span>' if detail else ""
+    return f'<div class="chk"><span class="ci">{icon}</span><span class="cl">{label}</span>{det}</div>'
+
+
+def live_card():
+    s = _live_status()
+    b = s["bal"]
+    shown_addr = (s["addr"][:6] + "…" + s["addr"][-4:]) if s["addr"] else "not set"
+    val = f'${b["account_value"]:,.2f}' if b else ("reachable — $0" if s["addr"] else "—")
+    wd = f'${b["withdrawable"]:,.2f}' if b else "—"
+    checks = (
+        _chk(s["env_exists"], "Env file exists", "/root/hl-live/.env" if s["env_exists"] else "create it (below)")
+        + _chk(s["key_set"], "Trade-only agent key set", "present (value never shown)" if s["key_set"] else "not set — you set it over SSH")
+        + _chk(bool(s["addr"]), "Public address set", shown_addr)
+        + _chk(bool(b and b["account_value"] > 0), "Wallet funded (USDC)", val)
+    )
+    if s["ready"]:
+        banner = '<div class="lban ok">🟢 RAILS READY — funded &amp; key set. Run the place-and-cancel test next.</div>'
+    else:
+        banner = '<div class="lban wait">⚙️ SETUP INCOMPLETE — follow the steps below. Nothing goes live until every row is ✅ and Claude flags the gate.</div>'
+    setup = '''ssh root@13.140.173.246
+nano /root/hl-live/.env
+# paste these two lines (agent key = TRADE-ONLY, cannot withdraw):
+#   HL_AGENT_KEY=0xYOUR_TRADE_ONLY_AGENT_KEY
+#   HL_ACCOUNT_ADDRESS=0xYOUR_PUBLIC_WALLET_ADDRESS
+chmod 600 /root/hl-live/.env'''
+    return f'''<div class="lcard">
+      {banner}
+      <div class="lgrid">
+        <div class="lchecks">{checks}
+          <div class="lnote">Withdrawable: {wd} · open positions: {b["n_pos"] if b else 0} · balance is read-only from Hyperliquid's public API.</div>
+        </div>
+        <div class="lsetup">
+          <div class="lsh">You set the key — I never see it. One SSH session:</div>
+          <pre class="cmd">{setup}</pre>
+          <div class="lnote">🔒 The agent key is a Hyperliquid <b>API wallet</b> — trade-only, <b>cannot withdraw</b>. There is deliberately NO key box on this page: a private key must never travel through a browser, network or log.</div>
+        </div>
+      </div>
     </div>'''
 
 
@@ -139,14 +230,23 @@ h1{{font-size:20px;margin:0;letter-spacing:.3px}}
 .pos{{display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--line);font-size:13px}}
 .pos:first-child{{border-top:0}}.sym{{flex:1;font-weight:600}}
 .row{{display:flex;justify-content:space-between;margin:7px 0;font-size:12.5px}}
-.pos,.neg,.pct.pos{{}}.pos.pos{{}}
-.pos-{{}}.pos > .pos{{}}
 .poslist{{margin-top:9px}}.legs{{margin-top:9px;display:flex;flex-wrap:wrap;gap:5px}}
 .leg{{font-size:11px;background:#1f6feb22;color:#79c0ff;padding:2px 7px;border-radius:5px}}
 .tag{{font-size:10px;padding:1px 6px;border-radius:5px}}.tag.gate{{background:#f8514922;color:#ff7b72}}.tag.win{{background:#3fb95022;color:#56d364}}
 .muted{{color:var(--mut)}}.sm{{font-size:11px;margin-top:9px}}
 span.pos,.big.pos{{color:var(--pos)}}span.neg,.big.neg,.pct.neg{{color:var(--neg)}}
 .pct.pos{{color:var(--pos)}}
+.lcard{{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}}
+.lban{{padding:9px 13px;border-radius:8px;font-weight:600;font-size:13px;margin-bottom:14px}}
+.lban.ok{{background:#3fb9501a;border:1px solid #3fb95055;color:#56d364}}
+.lban.wait{{background:#d299221a;border:1px solid #d2992255;color:#e3b341}}
+.lgrid{{display:grid;grid-template-columns:1fr 1fr;gap:18px}}
+@media(max-width:720px){{.lgrid{{grid-template-columns:1fr}}}}
+.chk{{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:13.5px}}
+.chk:first-child{{border-top:0}}.ci{{width:18px}}.cl{{flex:1}}.chd{{font-size:12px}}
+.lnote{{color:var(--mut);font-size:11.5px;margin-top:11px;line-height:1.6}}
+.lsh{{font-size:12px;color:var(--mut);margin-bottom:7px}}
+.cmd{{background:#0b0e14;border:1px solid var(--line);border-radius:8px;padding:11px 12px;font:12px/1.6 ui-monospace,Menlo,monospace;color:#adbac7;overflow-x:auto;white-space:pre;margin:0}}
 .foot{{margin-top:30px;color:var(--mut);font-size:11.5px;line-height:1.7}}
 </style></head><body><div class=wrap>
 <div class=hd><h1>🦅 PrimeHaul · Paper Desk</h1><span class=paper>PAPER ONLY · no keys · no money</span></div>
@@ -158,9 +258,12 @@ span.pos,.big.pos{{color:var(--pos)}}span.neg,.big.neg,.pct.neg{{color:var(--neg
 <div class=sect><span class=t>🎯 Signal Bots — proving forward (+40% TP)</span><span class="tot {_sign(tot_bot)}">Σ £{tot_bot:+.0f}</span></div>
 <div class=grid>{bc}</div>
 
+<div class=sect><span class=t>🔴 Live Setup — read-only status of the go-live rails</span></div>
+{live_card()}
+
 <div class=foot>
-🟢 <b>Funding</b> = market-neutral carry, the validated edge (OOS-held). 🎯 <b>Signal bots</b> = unproven, paper-only, counting rugs from t=0 (no survivorship). Overdose t=0 vs t+10 tests whether waiting beats sniping. Wallet-cluster fires only when ≥3 vetted winners hold the same fresh coin. <b>Nothing gets funded until a scoreboard proves out.</b>
-<br><br>📋 <b>Funding Bot</b> — full continuation/handoff prompt saved to <code>~/Desktop/FUNDING BOT.md</code> · repos private (jaybo1431/funding-harvester + robinhood-runner) · roadmap in <code>EXPANSION_ROADMAP.md</code>
+🟢 <b>Funding</b> = market-neutral carry, the validated edge (OOS-held). 🎯 <b>Signal bots</b> = unproven, paper-only, counting rugs from t=0 (no survivorship). 🔴 <b>Live Setup</b> = read-only readiness check; the key is set by you over SSH and never touches this page. <b>Nothing gets funded until a scoreboard proves out.</b>
+<br><br>📋 <b>Funding Bot</b> — full continuation/handoff prompt saved to <code>~/Desktop/FUNDING BOT.md</code> · repos private (jaybo1431/funding-harvester + robinhood-runner) · go-live steps in <code>~/Desktop/GO-LIVE CHECKLIST.md</code>
 </div>
 </div></body></html>'''
 

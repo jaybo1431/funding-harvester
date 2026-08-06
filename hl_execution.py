@@ -176,18 +176,74 @@ def plan():
             _place_live(coin, side, notional)      # guarded — only runs if LIVE + key present
 
 
-def _place_live(coin, side, notional):
-    """LIVE order placement — MAKER limit orders via the HL SDK. Guarded: needs LIVE=true
-    AND a trade-only HL wallet key in env. NOT wired to the SDK yet by design — this is
-    the final step, taken only after the paper proves out + the user sets the key."""
-    key = os.environ.get("HL_WALLET_KEY")
+# ── LIVE placement (post-only maker via HL SDK) ─────────────────────────────────────────
+# Guarded on every axis: needs LIVE=true AND a trade-only agent key in env. SDK is imported
+# LAZILY so system-python dry-run/cron never touches it — go LIVE with the venv python that
+# has the SDK (/root/hl-live/venv/bin/python). Reuses live_test.py's proven rounding.
+_CONN = {}                                                        # cached SDK connection
+MAKER_OFFSET  = float(os.environ.get("MAKER_OFFSET_BPS", "3")) / 10000.0   # rest inside the spread
+MIN_ORDER_USD = float(os.environ.get("MIN_ORDER_USD", "10"))              # HL min notional (~$10)
+
+
+def _connect():
+    """Lazy, cached HL SDK connection using the TRADE-ONLY agent key from env. Returns
+    (exchange, info, main_addr) or (None, None, None) if key/SDK unavailable — the caller
+    then places NOTHING (fail-safe). The raw key is never printed and not retained."""
+    if _CONN:
+        return _CONN.get("ex"), _CONN.get("info"), _CONN.get("main")
+    key = (os.environ.get("HL_WALLET_KEY") or os.environ.get("HL_AGENT_KEY") or "").strip()
     if not key:
-        print("     ⚠️ LIVE set but HL_WALLET_KEY missing in env — order NOT placed (safe).")
+        return None, None, None
+    try:
+        from eth_account import Account
+        from hyperliquid.info import Info
+        from hyperliquid.exchange import Exchange
+        from hyperliquid.utils import constants
+    except Exception as e:
+        print(f"     ⚠️ HL SDK not importable ({e}) — run with the venv python. Placing nothing.")
+        return None, None, None
+    acct = Account.from_key(key)
+    main = os.environ.get("HL_ACCOUNT_ADDRESS", "").strip() or acct.address
+    info = Info(constants.MAINNET_API_URL, skip_ws=True)
+    ex = Exchange(acct, constants.MAINNET_API_URL, account_address=main)
+    _CONN.update(ex=ex, info=info, main=main, meta=info.meta())
+    return ex, info, main
+
+
+def _sz_px(info, coin, side, notional):
+    """USD notional -> (size, maker limit price) with HL's rounding. Maker: a BUY rests just
+    below mid, a SELL just above — post-only (Alo) guarantees it never crosses into a taker."""
+    szdec = next((int(a["szDecimals"]) for a in _CONN["meta"]["universe"] if a["name"] == coin), 2)
+    mid = float(info.all_mids()[coin])
+    sz = round(notional / mid, szdec)
+    raw = mid * (1 - MAKER_OFFSET) if side == "buy" else mid * (1 + MAKER_OFFSET)
+    px = round(float(f"{raw:.5g}"), max(0, 6 - szdec))            # 5 sig-figs, HL px-decimals rule
+    return sz, px, mid
+
+
+def _place_live(coin, side, notional):
+    """LIVE order — post-only MAKER limit via the HL SDK. Guarded: needs LIVE=true AND a
+    trade-only agent key (set by the user, never in code). Alo = Add-Liquidity-Only, so it
+    rests as maker or is rejected — it can NEVER accidentally pay taker. Fail-safe: any
+    missing piece places nothing. (Maker-fill chasing/re-quote is a later refinement; v1
+    proves we can place real maker orders — measured at the Phase-4 live-proof gate.)"""
+    if notional < MIN_ORDER_USD:
+        print(f"     ⚠️ ${notional:,.0f} < ${MIN_ORDER_USD:.0f} HL min — skipped (too small).")
         return
-    # TODO(go-live): from hyperliquid.exchange import Exchange; post-only limit at best bid/ask.
-    #   Wire only after: (1) paper proven, (2) key is a TRADE-ONLY agent wallet (no withdraw),
-    #   (3) tested on ONE tiny order first. Left unwired on purpose — no accidental live trades.
-    print("     ⚠️ live SDK wiring intentionally not enabled yet (final go-live step).")
+    ex, info, main = _connect()
+    if not ex:
+        print("     ⚠️ no trade-only key / SDK — order NOT placed (safe).")
+        return
+    try:
+        sz, px, mid = _sz_px(info, coin, side, notional)
+        if sz <= 0:
+            print(f"     ⚠️ {coin} size rounded to 0 — skipped.")
+            return
+        res = ex.order(coin, side == "buy", sz, px, {"limit": {"tif": "Alo"}})
+        ok = isinstance(res, dict) and res.get("status") == "ok"
+        print(f"     {'✅' if ok else '⚠️'} {side} {sz} {coin} @ {px} (mid {mid}) post-only → {res}")
+    except Exception as e:
+        print(f"     ⚠️ live order error ({type(e).__name__}: {e}) — not retried this cycle.")
 
 
 if __name__ == "__main__":

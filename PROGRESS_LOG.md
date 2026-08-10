@@ -49,3 +49,26 @@ small LIVE test — agreed £150 (better than £250: more conservative first str
   dispersion (liquid XMR 19%, JUP 51%, APT 42%; thin fat ones = mirage, paper separates). Drift leg TBD.
 - **Repos secured**: primehaul + primehaul-leads PUBLIC→private (0 forks). Authorship verified: 140
   commits timestamped from 2025-12-27, all user identity.
+
+## 🛡️ SIGNAL-BOT REVIVAL + WATCHDOG (Aug 10 2026)
+User asked "is the wallet-cluster working?" — investigation found ALL THREE signal bots
+(overdose t=0, overdose t+10, wallet-cluster) had been SILENTLY DEAD since ~Jul 24.
+
+- **Root cause**: crons used `... && source ./env && python3 ...` but cron runs /bin/sh (dash),
+  where `source` is invalid → the `&&` chain short-circuited → python NEVER ran → state froze
+  looking calm/0-0-0. Smoking gun: none of the three log files ever existed. Funding books were
+  UNAFFECTED (they use `/usr/bin/python3` directly, no source) — the real edge kept its 20d data.
+- **Fix**: added `SHELL=/bin/bash` to top of crontab → all crons now run under bash, `source` works.
+  Verified end-to-end: real scheduled cron tick fired overdose (1-min-old state), overdose_d10
+  CAUGHT A REAL CALL (queued pending), cluster scanning 146 winner wallets. Wallet-cluster confirmed
+  INDEPENDENT of Overdose (watches on-chain wallet clusters, not his posts).
+- **17-day gap is a blank** — missed calls/clusters Jul24→Aug10 unrecoverable; forward scoreboard
+  restarts from Aug 10. These are unproven paper experiments — nothing real was risked.
+
+- **signal_watchdog.py** (robinhood-runner): dead-man's switch. Checks all 8 paper books' state-file
+  mtimes every 30min; Telegrams an alert if any is stale past its cron cadence. Alert path verified
+  end-to-end (RUNNER_TG_TOKEN/CHAT). Cron */30.
+- **Dashboard Book Health strip** (:3040): green/red freshness chips per book, header flips to
+  "⚠️ a book has stalled". Two independent layers now catch a silent stall (dashboard + Telegram).
+
+Commits: funding-harvester 506061c (health strip) · robinhood-runner 3fbc1ff (watchdog+fix).

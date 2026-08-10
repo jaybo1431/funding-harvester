@@ -28,6 +28,19 @@ HL_INFO = "https://api.hyperliquid.xyz/info"
 HRS_YR = 24 * 365
 START_BANK = 1000.0
 
+# (label, state file, max-age minutes) — mirrors signal_watchdog.py; a book stale past its
+# cron cadence means its cron has silently died (the Jul-24 lesson). Freshness strip surfaces it.
+FRESH = [
+    ("HL Flat", f"{FH}/hl_paper_state.json", 150),
+    ("HL Conc", f"{FH}/hl_paper_conc_state.json", 150),
+    ("Drift", f"{FH}/drift_paper_state.json", 150),
+    ("Lighter", f"{FH}/lighter_paper_state.json", 150),
+    ("Cross-Venue", f"{FH}/cross_venue_state.json", 150),
+    ("OD t=0", f"{RR}/overdose_state.json", 20),
+    ("OD t+10", f"{RR}/overdose_d10_state.json", 20),
+    ("Cluster", f"{RR}/cluster_state.json", 50),
+]
+
 
 def _load(p, d=None):
     try:
@@ -90,6 +103,27 @@ def _hl_balance(addr):
                 "n_pos": len(d.get("assetPositions", []) or [])}
     except Exception:
         return None
+
+
+def freshness_strip():
+    """Health chips: each book's state-file age with a green/amber dot. Amber = stale past
+    its cron cadence (silent stall). Lets you eyeball freshness without waiting for the
+    Telegram watchdog — same thresholds as signal_watchdog.py."""
+    now = time.time()
+    chips, any_stale = [], False
+    for label, path, max_age in FRESH:
+        try:
+            age = (now - os.path.getmtime(path)) / 60
+            stale = age > max_age
+            age_s = f"{age:.0f}m" if age < 90 else f"{age/60:.1f}h"
+        except OSError:
+            stale, age_s = True, "none"
+        any_stale = any_stale or stale
+        cls = "fstale" if stale else "fok"
+        chips.append(f'<span class="fchip {cls}"><span class="fdot"></span>{label} {age_s}</span>')
+    head = "⚠️ a book has stalled" if any_stale else "all books firing"
+    return (f'<div class="sect"><span class=t>🩺 Book Health — {head}</span></div>'
+            f'<div class="fstrip">{"".join(chips)}</div>')
 
 
 def _live_status():
@@ -236,6 +270,11 @@ h1{{font-size:20px;margin:0;letter-spacing:.3px}}
 .muted{{color:var(--mut)}}.sm{{font-size:11px;margin-top:9px}}
 span.pos,.big.pos{{color:var(--pos)}}span.neg,.big.neg,.pct.neg{{color:var(--neg)}}
 .pct.pos{{color:var(--pos)}}
+.fstrip{{display:flex;flex-wrap:wrap;gap:7px;margin:4px 0 2px}}
+.fchip{{display:flex;align-items:center;gap:6px;font-size:11.5px;padding:3px 9px;border-radius:20px;border:1px solid var(--line);background:var(--card);color:var(--mut)}}
+.fdot{{width:7px;height:7px;border-radius:50%}}
+.fok .fdot{{background:var(--pos)}}.fok{{color:var(--tx)}}
+.fstale .fdot{{background:var(--neg)}}.fstale{{color:var(--neg);border-color:#f8514955;background:#f851490f}}
 .lcard{{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}}
 .lban{{padding:9px 13px;border-radius:8px;font-weight:600;font-size:13px;margin-bottom:14px}}
 .lban.ok{{background:#3fb9501a;border:1px solid #3fb95055;color:#56d364}}
@@ -251,6 +290,8 @@ span.pos,.big.pos{{color:var(--pos)}}span.neg,.big.neg,.pct.neg{{color:var(--neg
 </style></head><body><div class=wrap>
 <div class=hd><h1>🦅 PrimeHaul · Paper Desk</h1><span class=paper>PAPER ONLY · no keys · no money</span></div>
 <div class=muted style="font-size:12px">forward-proving before a penny moves · auto-refresh 60s</div>
+
+{freshness_strip()}
 
 <div class=sect><span class=t>🟢 Funding Machine — positive-sum core</span><span class=tot>Σ net {tot_fund:+.3f}%</span></div>
 <div class=grid>{fc}</div>

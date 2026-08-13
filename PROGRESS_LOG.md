@@ -72,3 +72,21 @@ User asked "is the wallet-cluster working?" — investigation found ALL THREE si
   "⚠️ a book has stalled". Two independent layers now catch a silent stall (dashboard + Telegram).
 
 Commits: funding-harvester 506061c (health strip) · robinhood-runner 3fbc1ff (watchdog+fix).
+
+## 💷 FUNDING SCOPE — ONE WALLET ONLY (Aug 13 2026)
+User asked if they need to fund multiple wallets (Solana + USDC for HL + overdose + cluster).
+ANSWER: NO — fund ONE wallet, ONE thing: £150 USDC on Hyperliquid. That's the entire live scope.
+
+- ✅ HL funding book → £150 USDC on Hyperliquid. The proven edge. The ONLY thing going live now.
+- ❌ Drift (paper) → would need Solana USDC IF it ever went live — NOT now, not proven-live.
+- ❌ Lighter / Cross-venue (paper) → later modules in the queue, no funding.
+- ❌ Overdose calls + Wallet-cluster → NO funding. Unproven memecoin punts, negative-sum arena,
+  honeypot/rug risk, ZERO forward-proven track record (scoreboard only restarted Aug 10 after the
+  17-day stall). A signal bot earns real money ONLY after its paper scoreboard wins over weeks.
+- RULE reaffirmed: multi-wallet / multi-chain (Solana for Drift etc.) comes LATER, ONE at a time,
+  each only after it proves live — never all at once. Don't spread £150 across 5 things and learn
+  nothing. One clean, proven, market-neutral bet first.
+
+Status ~23d paper: HL Flat +32% / Conc +78% realistic (parked at run highs, no decay). Cross-venue
+now ~51% APY over 2.8d (graduating noise→signal, still haircut for thin names). Overdose t+10 still
+holding PUMP flat 3d (heading to +40%TP or 5d stale-close). All 8 books green, watchdog quiet.

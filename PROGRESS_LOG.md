@@ -90,3 +90,24 @@ ANSWER: NO — fund ONE wallet, ONE thing: £150 USDC on Hyperliquid. That's the
 Status ~23d paper: HL Flat +32% / Conc +78% realistic (parked at run highs, no decay). Cross-venue
 now ~51% APY over 2.8d (graduating noise→signal, still haircut for thin names). Overdose t+10 still
 holding PUMP flat 3d (heading to +40%TP or 5d stale-close). All 8 books green, watchdog quiet.
+
+## 🧠 FILL-LOGGING LAYER — the ML prerequisite (Aug 13 2026)
+User asked if a dynamic ML model would trade better. HONEST VERDICT: not yet, and not for the
+strategy. Funding harvest is STRUCTURAL (observe funding → short it → collect), not a prediction
+problem — ML can't improve an edge that isn't a forecast. And ZERO live data exists (23d paper, no
+fills); a model trained on 23d of one regime would overfit — the exact trap that killed the memecoin
+bots. Where ML DOES help later: the FILL layer (maker-fill probability), which needs live fill data.
+
+So built the prerequisite, not a premature model:
+- **fill_log.jsonl** — every live maker order logs 2 rows: 'place' (order-book FEATURES at placement:
+  spread, bid/ask depth 10 levels, mid, funding, chosen maker offset, size) + 'outcome' (label, next
+  cycle via reconcile_fills matching oid→user_fills: filled?, maker vs taker (crossed==False), realized
+  slippage vs mid, time-to-fill, fee). That's a full ML training example per order.
+- **reconcile_fills()** runs each LIVE cycle, labels last cycle's orders against real fills.
+- **fill_analysis.py** — reads/pairs the log, prints fill-rate / maker% / median slippage / TTF. Says
+  "train a fill-probability model at ~1000+ rows". No training yet — honest read of data first.
+- ALL SDK-touching code inside the LIVE-guarded lazy path. Verified: dry-run untouched, failsafe
+  intact (LIVE+no key places nothing), no log file until real orders. Commit 9969be5.
+
+PATH: fund £150 → orders place → log fills → after ~1 month + ~1000 rows, THEN a small fill model
+is a grounded few-% uplift on honest net. ML is now wired to happen the moment there's fuel (the £150).

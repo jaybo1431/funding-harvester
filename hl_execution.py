@@ -121,6 +121,10 @@ def plan():
     if not fund:
         print("hl_execution: HL fetch failed — skip")
         return
+    if LIVE:                                   # label last cycle's orders against real fills (ML data)
+        _ex, _info, _main = _connect()
+        if _ex:
+            reconcile_fills(_info, _main)
     st = _load(STATE, {"book": {}, "realized_pnl": 0.0})
     book = st["book"]                         # coin -> {side, ann_at_entry}
 
@@ -183,6 +187,81 @@ def plan():
 _CONN = {}                                                        # cached SDK connection
 MAKER_OFFSET  = float(os.environ.get("MAKER_OFFSET_BPS", "3")) / 10000.0   # rest inside the spread
 MIN_ORDER_USD = float(os.environ.get("MIN_ORDER_USD", "10"))              # HL min notional (~$10)
+FILL_LOG = os.path.join(HERE, "fill_log.jsonl")   # ML training data: book context + fill outcome per order
+
+
+def _book_features(info, coin):
+    """Order-book context at placement — the FEATURES a future maker-fill model trains on.
+    Pulls the L2 snapshot: best bid/ask, spread, and depth on each side. Robust to shape
+    changes / failures (returns what it can). Read-only, no side effects."""
+    f = {}
+    try:
+        snap = info.l2_snapshot(coin)
+        levels = snap.get("levels") or snap.get("data", {}).get("levels")
+        bids, asks = levels[0], levels[1]
+        bb = float(bids[0]["px"]); ba = float(asks[0]["px"])
+        f["best_bid"], f["best_ask"] = bb, ba
+        f["mid"] = (bb + ba) / 2
+        f["spread_bps"] = (ba - bb) / f["mid"] * 1e4 if f["mid"] else None
+        # depth = cumulative USD size within 10 levels each side (liquidity the order sits behind)
+        f["bid_depth_usd"] = sum(float(l["px"]) * float(l["sz"]) for l in bids[:10])
+        f["ask_depth_usd"] = sum(float(l["px"]) * float(l["sz"]) for l in asks[:10])
+        f["n_bid_lvls"], f["n_ask_lvls"] = len(bids), len(asks)
+    except Exception as e:
+        f["book_err"] = f"{type(e).__name__}"
+    return f
+
+
+def _log_fill_row(row):
+    """Append one JSONL row to the fill log — the durable ML dataset. Never raises."""
+    try:
+        with open(FILL_LOG, "a") as fh:
+            fh.write(json.dumps(row) + "\n")
+    except Exception:
+        pass
+
+
+def reconcile_fills(info, main):
+    """Second half of the training label: match previously-placed orders to what ACTUALLY
+    happened. Reads recent fills; for each placed oid not yet resolved, logs an 'outcome'
+    row — fill price, realized slippage vs the mid at placement, maker/taker, time-to-fill.
+    Runs once per LIVE cycle. Read-only against the exchange; only writes to the log + state."""
+    st = _load(STATE, {})
+    pending = st.get("pending_oids", {})          # oid -> {coin, side, place_ts, mid_at_place, limit_px}
+    if not pending:
+        return
+    try:
+        fills = info.user_fills(main) or []
+    except Exception:
+        return
+    filled = {str(fl.get("oid")): fl for fl in fills}
+    resolved = []
+    for oid, meta in list(pending.items()):
+        fl = filled.get(str(oid))
+        if not fl:                                # not filled yet — leave pending (may fill later)
+            continue
+        try:
+            fill_px = float(fl.get("px", 0))
+            mid0 = meta.get("mid_at_place") or fill_px
+            side = meta.get("side")
+            # realized slippage: for a BUY, filling BELOW mid is good (negative bps = we earned edge)
+            slip_bps = ((fill_px - mid0) / mid0 * 1e4) * (1 if side == "buy" else -1) if mid0 else None
+            _log_fill_row({
+                "t": "outcome", "ts": int(time.time()), "oid": oid,
+                "coin": meta.get("coin"), "side": side,
+                "limit_px": meta.get("limit_px"), "mid_at_place": mid0,
+                "fill_px": fill_px, "realized_slip_bps": slip_bps,
+                "is_maker": fl.get("crossed") is False,     # HL: crossed=False → we were maker
+                "fee": float(fl.get("fee", 0) or 0),
+                "time_to_fill_s": int(time.time()) - int(meta.get("place_ts", time.time())),
+            })
+        except Exception:
+            pass
+        resolved.append(oid)
+    for oid in resolved:
+        pending.pop(oid, None)
+    st["pending_oids"] = pending
+    json.dump(st, open(STATE, "w"), indent=1)
 
 
 def _connect():
@@ -235,6 +314,7 @@ def _place_live(coin, side, notional):
         print("     ⚠️ no trade-only key / SDK — order NOT placed (safe).")
         return
     try:
+        feats = _book_features(info, coin)          # capture book context BEFORE placing (ML features)
         sz, px, mid = _sz_px(info, coin, side, notional)
         if sz <= 0:
             print(f"     ⚠️ {coin} size rounded to 0 — skipped.")
@@ -242,6 +322,22 @@ def _place_live(coin, side, notional):
         res = ex.order(coin, side == "buy", sz, px, {"limit": {"tif": "Alo"}})
         ok = isinstance(res, dict) and res.get("status") == "ok"
         print(f"     {'✅' if ok else '⚠️'} {side} {sz} {coin} @ {px} (mid {mid}) post-only → {res}")
+        # extract the resting order id so reconcile_fills can label the outcome next cycle
+        oid = None
+        try:
+            statuses = res["response"]["data"]["statuses"]
+            oid = statuses[0].get("resting", {}).get("oid") or statuses[0].get("filled", {}).get("oid")
+        except Exception:
+            pass
+        _log_fill_row({"t": "place", "ts": int(time.time()), "oid": oid, "coin": coin,
+                       "side": side, "notional": notional, "sz": sz, "limit_px": px, "mid": mid,
+                       "maker_offset_bps": MAKER_OFFSET * 1e4, "placed_ok": ok, **feats})
+        if oid:                                     # remember it → reconcile against fills next cycle
+            st = _load(STATE, {})
+            st.setdefault("pending_oids", {})[str(oid)] = {
+                "coin": coin, "side": side, "place_ts": int(time.time()),
+                "mid_at_place": feats.get("mid", mid), "limit_px": px}
+            json.dump(st, open(STATE, "w"), indent=1)
     except Exception as e:
         print(f"     ⚠️ live order error ({type(e).__name__}: {e}) — not retried this cycle.")
 

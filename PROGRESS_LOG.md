@@ -145,3 +145,25 @@ FIX/UPGRADE — trailing-stop exit mode to squeeze the runners:
 - NEW _trail cron instance (t=0 entry, trail exit) seeded #3304, head-to-head with tp40 t=0 + t+10 on
   the SAME calls. Wired into watchdog + dashboard (3rd Overdose card "let winners run") + checkin.
 - Commits: robinhood-runner ce4cfa0 (trail + watchdog), funding-harvester d71b492 (dash). All paper.
+
+## 🔬 MAGA ON-CHAIN RECONSTRUCTION + EXIT VARIANTS (Aug 15 2026)
+User's REAL 2024 trade: bought MAGA (0xD29DA236..) May 17, rode a big dip on the 21st, sold ~27th for
+huge gains. Wanted the bot backtested on it. 2024 unreachable via APIs (GeckoTerminal/CoinGecko free
+cap ~6-12mo, 401 on older). Solution: ON-CHAIN reconstruction via user's Infura key.
+- Coin confirmed: MAGA/WETH, Ethereum, Uniswap V2 pool 0x0c3fdf9c.., MAGA 9 decimals.
+- Pulled 26,422 Sync events (reserve0/reserve1 → MAGA price in ETH) across May-2024 blocks
+  19,878,821→19,971,801 via Infura eth_getLogs (10k-block chunks, heavy retry on -32603 transient errs).
+- RESULT — MAGA path from entry: +208% (18th), +1867% (21st, dipped to +1120% intraday), pulled back
+  to +644% (23rd), then +2237/2439/5403% (25/26/28th). PEAK +2559% in window. User sold ~+2238% (≈23x).
+  STORY CONFIRMED on-chain — his call + her diamond hands = real 23x.
+- BOMBSHELL: bot would have WRECKED it. +40% TP sold May-17 14:56 (hrs after entry) for +40%. Tight 25%
+  trail shaken out +33% same day. User's intuition beat the bot ~56x. Extreme VEX lesson: flat/tight
+  exits are catastrophic on moonshots; our 25% trail is FAR too tight for memecoin vol.
+
+FIX — two new exit variants tuned on MAGA (overdose_tracker.py OD_EXIT):
+- "partial": bank HALF at +40% (base win even on fakeouts) + ride other half on wide trail. MAGA replay +408%.
+- "moon" (= trail run WIDE via env: OD_TRAIL_ARM=2.0 arm+100%, OD_TRAIL_PCT=0.55). MAGA replay +777%.
+  (vs flat tp40 +40%, tight trail +33%.) Neither beats the +2238% ride, but 10-19x the flat TP, MECHANICAL.
+- Spun up _moon + _part cron instances (5-min, seeded #3304) → now a 5-ARM forward exit A/B on his calls
+  (t=0 tp40, t+10 tp40, trail-tight, moon-wide, partial). Wired watchdog + dashboard (5 Overdose cards).
+- Commits: robinhood-runner 893fcda, funding-harvester afa00f6. All paper. Infura key user-supplied (rotatable).

@@ -111,3 +111,18 @@ So built the prerequisite, not a premature model:
 
 PATH: fund £150 → orders place → log fills → after ~1 month + ~1000 rows, THEN a small fill model
 is a grounded few-% uplift on honest net. ML is now wired to happen the moment there's fuel (the £150).
+
+## 🐛 CROSS-CHAIN TICKER RESOLVER FIX — copycat caught live (Aug 15 2026)
+User noticed the open PUMP paper position "should have gone up" — investigated, found a real bug.
+- Overdose post #3303 called "$PUMP" by TICKER (no address). $PUMP = pump.fun's token on SOLANA.
+- BUG: coin_resolver._search_ticker searched ROBINHOOD chain ONLY for ticker calls, so it grabbed a
+  same-named Robinhood-chain PUMP copycat (0xf2311c79..) that sat DEAD FLAT (-2%, peak +0%) for 4.5d
+  while the REAL PUMP ran to $0.00278 ($17.6M liq). Exact "wrong contract = worthless data" trap.
+- FIX (robinhood-runner ce2f2d8): _search_ticker now searches ALL chains, takes DEEPEST-liquidity
+  match (copycat-proof 'deepest wins' applied to tickers), returns (token, network). Whole-symbol
+  match (PUMP != TRUMP). Solana base58 kept case-sensitive via _tok_netaddr (lowercasing corrupted it).
+  Verified: $PUMP → solana pumpCmXq.. $17.6M conf MEDIUM. EVM address path regression-tested intact.
+- Bad data VOIDED: PUMP positions in overdose + overdose_d10 marked voided_wrong_contract (£0, excluded
+  from scoreboard); false PUMP 'rugged' row stripped from trades CSV (backup kept). Books back to clean 0/0/0.
+- Impact: was silently mis-resolving EVERY ticker-only call on Solana/BSC. Now tracks the coins he MEANS
+  across all chains. Caught free on paper before any real money.

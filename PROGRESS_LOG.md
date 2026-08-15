@@ -126,3 +126,22 @@ User noticed the open PUMP paper position "should have gone up" — investigated
   from scoreboard); false PUMP 'rugged' row stripped from trades CSV (backup kept). Books back to clean 0/0/0.
 - Impact: was silently mis-resolving EVERY ticker-only call on Solana/BSC. Now tracks the coins he MEANS
   across all chains. Caught free on paper before any real money.
+
+## 🎯 BACKTEST OF REACHABLE CALLS + TRAILING-STOP EXIT A/B (Aug 15 2026)
+User asked to backtest Overdose calls other than PUMP. 2024 unreachable (channel only ~3300 posts,
+Robinhood-chain focused = 2026, public preview shows only last ~20 posts). BUT the reachable window
+(Jul 8–Aug 9, timestamps in t.me/s HTML) IS backtestable — built backtest_recent.py:
+- Extracts (post_id, timestamp, text) from preview, resolves coins copycat-proof (cross-chain fixed),
+  pulls hourly OHLCV from call time, simulates the bot rule (+40% TP / rug proxy -90% / 5d stale).
+- RESULT (n=3 clean, rest commentary/no-history/rate-limited): JUGGERNAUT TP +40% (peak +59%),
+  VEX TP +40% (PEAK +214%), HOODRAT stale -75% (peak +14%). 67% hit, avg +1.8%/call, £100 clips → +£5.
+- KEY INSIGHT: flat +40% TP CAPS the runners — VEX ran +214% but booked +40% (left +174% on table).
+  And one rug (-75%) eats two +40% wins. Asymmetry the wrong way. Small sample; forward tracker trusted.
+
+FIX/UPGRADE — trailing-stop exit mode to squeeze the runners:
+- overdose_tracker.py OD_EXIT: "tp40" (default, unchanged) | "trail" (no hard TP; arm ratcheting stop
+  at +40%, exit 25% off running peak). Unit-tested: runner +130% (vs +40% capped), quick-tap -10%
+  (vs +40%) — the exact tradeoff. Which wins = how often his calls run vs fake out → forward A/B decides.
+- NEW _trail cron instance (t=0 entry, trail exit) seeded #3304, head-to-head with tp40 t=0 + t+10 on
+  the SAME calls. Wired into watchdog + dashboard (3rd Overdose card "let winners run") + checkin.
+- Commits: robinhood-runner ce4cfa0 (trail + watchdog), funding-harvester d71b492 (dash). All paper.

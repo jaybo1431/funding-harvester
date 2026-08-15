@@ -38,6 +38,7 @@ FRESH = [
     ("Cross-Venue", f"{FH}/cross_venue_state.json", 150),
     ("OD t=0", f"{RR}/overdose_state.json", 20),
     ("OD t+10", f"{RR}/overdose_d10_state.json", 20),
+    ("OD Trail", f"{RR}/overdose_trail_state.json", 20),
     ("Cluster", f"{RR}/cluster_state.json", 50),
 ]
 
@@ -235,8 +236,9 @@ def page():
         # Aster paused Jul 31 — funding churns too fast to carry (confirmed dud, code kept).
     ]
     bots = [
-        _bot("Overdose t=0", "caller copy · buy now", f"{RR}/overdose_state.json"),
-        _bot("Overdose t+10", "caller copy · wait 10m", f"{RR}/overdose_d10_state.json"),
+        _bot("Overdose t=0", "caller copy · buy now · +40% TP", f"{RR}/overdose_state.json"),
+        _bot("Overdose t+10", "caller copy · wait 10m · +40% TP", f"{RR}/overdose_d10_state.json"),
+        _bot("Overdose Trail", "caller copy · let winners run", f"{RR}/overdose_trail_state.json"),
         _bot("Wallet-Cluster", "≥3 vetted winners", f"{RR}/cluster_state.json"),
     ]
     tot_fund = sum(f.get("net", 0) for f in funds if not f.get("dead"))

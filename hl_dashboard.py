@@ -39,6 +39,8 @@ FRESH = [
     ("OD t=0", f"{RR}/overdose_state.json", 20),
     ("OD t+10", f"{RR}/overdose_d10_state.json", 20),
     ("OD Trail", f"{RR}/overdose_trail_state.json", 20),
+    ("OD Moon", f"{RR}/overdose_moon_state.json", 20),
+    ("OD Part", f"{RR}/overdose_part_state.json", 20),
     ("Cluster", f"{RR}/cluster_state.json", 50),
 ]
 
@@ -238,7 +240,9 @@ def page():
     bots = [
         _bot("Overdose t=0", "caller copy · buy now · +40% TP", f"{RR}/overdose_state.json"),
         _bot("Overdose t+10", "caller copy · wait 10m · +40% TP", f"{RR}/overdose_d10_state.json"),
-        _bot("Overdose Trail", "caller copy · let winners run", f"{RR}/overdose_trail_state.json"),
+        _bot("Overdose Trail", "trail · tight 25%", f"{RR}/overdose_trail_state.json"),
+        _bot("Overdose Moon", "wide trail · catch the run", f"{RR}/overdose_moon_state.json"),
+        _bot("Overdose Part", "half +40% · half rides", f"{RR}/overdose_part_state.json"),
         _bot("Wallet-Cluster", "≥3 vetted winners", f"{RR}/cluster_state.json"),
     ]
     tot_fund = sum(f.get("net", 0) for f in funds if not f.get("dead"))

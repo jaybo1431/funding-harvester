@@ -167,3 +167,23 @@ FIX — two new exit variants tuned on MAGA (overdose_tracker.py OD_EXIT):
 - Spun up _moon + _part cron instances (5-min, seeded #3304) → now a 5-ARM forward exit A/B on his calls
   (t=0 tp40, t+10 tp40, trail-tight, moon-wide, partial). Wired watchdog + dashboard (5 Overdose cards).
 - Commits: robinhood-runner 893fcda, funding-harvester afa00f6. All paper. Infura key user-supplied (rotatable).
+
+## 🐛 SIGNAL-BOT DATA-QUALITY FIXES — CASHCAT post-mortem (Aug 20 2026)
+First real Overdose call caught by the 5-arm exit A/B — and it was TRIPLE-garbage (user spotted it):
+CASHCAT booked -100% "rugged" on 3 books. Investigation found THREE bugs, all now fixed + data voided.
+- **1. Not a fresh call.** Posts #3305/#3306 were watchlist COMMENTARY ("a few mid-caps look interesting,
+  $CASHCAT [Robinhood] down to 88M mcap, liquidity rotating to basecat") — not a buy call. Bot traded it anyway.
+  FIX: `_is_call()` filter in overdose_tracker.py — skips watchlists/updates (3+ tickers, or commentary
+  language with no call language, unless a contract address is posted). Verified: #3305/#3306 → is_call=False.
+- **2. Wrong chain.** He wrote "$CASHCAT [Robinhood]"; resolver grabbed the SOLANA namesake (deepest liq).
+  FIX: chain-tag resolution — resolve(query, chain=hint); _search_ticker prefers the tagged chain.
+  _coins_in now extracts the [chain] tag. Verified: [Robinhood] → robinhood chain (not solana).
+- **3. False -100% rug.** CASHCAT read px=0 for ONE cycle and got marked rugged while sitting on $113M
+  liquidity (coin is alive, ~flat from entry). FIX: feed-glitch guard — px<=0 with healthy liq = skip the
+  cycle, not a rug; rug now requires liq<RUG_LIQ (not "liq gone OR px<=0"). Applies to all 3 exit modes.
+- VOIDED all CASHCAT positions + stripped from trade CSVs (took 2 goes — a cron race re-clobbered once).
+  All overdose books back to clean 0/0/0.
+- Commits (robinhood-runner): 86d6ad6 (rug fix), df0f105 (call filter + chain-tag). Deployed on VPS.
+- LESSON: this is WHY we prove signal bots forward on paper — 3 data-corrupting bugs on the FIRST real
+  call, caught by human eyeball. Funding books (proven edge) unaffected. moon/part missed this call
+  (seeded after #3306) — a seeding-timing artifact, not a bug.
